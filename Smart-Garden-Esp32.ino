@@ -12,7 +12,7 @@ const char* WIFI_PASSWORD = "0795051979";
 // ==========================================
 // CẤU HÌNH MQTT BROKER
 // ==========================================
-const char* MQTT_BROKER = "192.168.0.101";  // IP máy tính chạy server (thay đổi theo IP của bạn)
+const char* MQTT_BROKER = "192.168.0.101";  // IP máy tính chạy server (thay đổi theo IP)
 const int MQTT_PORT = 1883;
 const char* MQTT_CLIENT_ID = "ESP32_001";  // ID thiết bị (phải unique)
 
@@ -30,21 +30,19 @@ DHT dht(DHTPIN, DHTTYPE);
 #define RELAY_PUMP 25  // Relay điều khiển máy bơm
 #define LED_PIN 27     // LED
 
-// Active LOW relay
 #define ON LOW
 #define OFF HIGH
+// Cấu hình logic cho Đèn LED (Đảo ngược lại: HIGH là sáng)
+#define LED_ON   HIGH
+#define LED_OFF  LOW
 
-// ==========================================
 // MQTT TOPICS
-// ==========================================
+
 char TOPIC_SENSORS[50];
 char TOPIC_STATUS[50];
 char TOPIC_COMMAND[50];
 char TOPIC_COMMAND_ACK[50];
 
-// ==========================================
-// BIẾN TOÀN CỤC
-// ==========================================
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
@@ -67,9 +65,8 @@ unsigned long pumpStartTime = 0;
 unsigned long pumpDuration = 0;
 bool autoPumpOff = false;
 
-// ==========================================
 // SETUP
-// ==========================================
+
 void setup() {
   Serial.begin(115200);
   Serial.println("\n\n=================================");
@@ -96,13 +93,11 @@ void setup() {
   // Kết nối MQTT
   connectMQTT();
 
-  Serial.println("\n✅ Setup completed!");
+  Serial.println("\n Setup completed!");
   Serial.println("=================================\n");
 }
 
-// ==========================================
 // LOOP
-// ==========================================
 void loop() {
   // Kiểm tra kết nối MQTT
   if (!mqttClient.connected()) {
@@ -130,14 +125,9 @@ void loop() {
 
   // Kiểm tra auto pump off
   checkAutoPumpOff();
-  // Auto control LED theo ánh sáng
-  autoControlLED(); // mới thêm 
-
 }
 
-// ==========================================
 // SETUP FUNCTIONS
-// ==========================================
 void setupGPIO() {
   // Output pins
   pinMode(RELAY_PUMP, OUTPUT);
@@ -145,13 +135,13 @@ void setupGPIO() {
 
   // Tắt tất cả relay khi khởi động
   digitalWrite(RELAY_PUMP, OFF);
-  digitalWrite(LED_PIN, OFF);
+  digitalWrite(LED_PIN, LED_OFF);
 
   // Input pins
   pinMode(SOIL_PIN, INPUT);
   pinMode(LIGHT_DO, INPUT);
 
-  Serial.println("✅ GPIO initialized");
+  Serial.println(" GPIO initialized");
 }
 
 void setupTopics() {
@@ -167,11 +157,10 @@ void setupTopics() {
   Serial.printf("   ACK:     %s\n", TOPIC_COMMAND_ACK);
 }
 
-// ==========================================
 // WIFI FUNCTIONS
-// ==========================================
+
 void connectWiFi() {
-  Serial.printf("📶 Connecting to WiFi:  %s", WIFI_SSID);
+  Serial.printf(" Connecting to WiFi:  %s", WIFI_SSID);
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -189,15 +178,13 @@ void connectWiFi() {
     Serial.printf("   Signal Strength: %d dBm\n", WiFi.RSSI());
   } else {
     Serial.println(" Failed!");
-    Serial.println("⚠️ Restarting in 5 seconds.. .");
+    Serial.println("<!> Restarting in 5 seconds.. .");
     delay(5000);
     ESP.restart();
   }
 }
 
-// ==========================================
 // MQTT FUNCTIONS
-// ==========================================
 void connectMQTT() {
   Serial.printf("🔌 Connecting to MQTT Broker: %s:%d\n", MQTT_BROKER, MQTT_PORT);
 
@@ -207,12 +194,12 @@ void connectMQTT() {
 
     // Subscribe to command topic
     mqttClient.subscribe(TOPIC_COMMAND);
-    Serial.printf("📥 Subscribed to: %s\n", TOPIC_COMMAND);
+    Serial.printf(" Subscribed to: %s\n", TOPIC_COMMAND);
 
     // Gửi status ngay khi kết nối
     sendDeviceStatus();
   } else {
-    Serial.printf("❌ MQTT Connection failed, rc=%d\n", mqttClient.state());
+    Serial.printf(" MQTT Connection failed, rc=%d\n", mqttClient.state());
     isConnected = false;
   }
 }
@@ -224,7 +211,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   memcpy(message, payload, length);
   message[length] = '\0';
 
-  Serial.println("\n📨 ====== MESSAGE RECEIVED ======");
+  Serial.println("\n ====== MESSAGE RECEIVED ======");
   Serial.printf("   Topic: %s\n", topic);
   Serial.printf("   Payload: %s\n", message);
 
@@ -233,7 +220,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   DeserializationError error = deserializeJson(doc, message);
 
   if (error) {
-    Serial.printf("❌ JSON parse error: %s\n", error.c_str());
+    Serial.printf(" JSON parse error: %s\n", error.c_str());
     return;
   }
 
@@ -272,7 +259,7 @@ void processCommand(const char* commandId, const char* action, StaticJsonDocumen
 
     success = true;
     resultMessage = "Pump turned ON for " + String(duration) + " seconds";
-    Serial.printf("💧 Pump ON (duration: %d seconds)\n", duration);
+    Serial.printf(" Pump ON (duration: %d seconds)\n", duration);
   }
   // PUMP OFF
   else if (strcmp(action, "pump_off") == 0) {
@@ -282,30 +269,30 @@ void processCommand(const char* commandId, const char* action, StaticJsonDocumen
 
     success = true;
     resultMessage = "Pump turned OFF";
-    Serial.println("💧 Pump OFF");
+    Serial.println(" Pump OFF");
   }
   // LED ON
   else if (strcmp(action, "led_on") == 0) {
-    digitalWrite(LED_PIN, ON);
+    digitalWrite(LED_PIN, LED_ON);
     ledStatus = true;
 
     success = true;
     resultMessage = "LED turned ON";
-    Serial.println("💡 LED ON");
+    Serial.println("LED ON");
   }
   // LED OFF
   else if (strcmp(action, "led_off") == 0) {
-    digitalWrite(LED_PIN, OFF);
+    digitalWrite(LED_PIN, LED_OFF);
     ledStatus = false;
 
     success = true;
     resultMessage = "LED turned OFF";
-    Serial.println("💡 LED OFF");
+    Serial.println(" LED OFF");
   }
   // Unknown action
   else {
     resultMessage = "Unknown action: " + String(action);
-    Serial.printf("⚠️ Unknown action: %s\n", action);
+    Serial.printf("Unknown action: %s\n", action);
   }
 
   // Gửi ACK
@@ -329,16 +316,14 @@ void sendCommandAck(const char* commandId, bool success, const char* message) {
 
   mqttClient.publish(TOPIC_COMMAND_ACK, buffer);
 
-  Serial.printf("📤 ACK sent: %s - %s\n", commandId, success ? "success" : "failed");
+  Serial.printf(" ACK sent: %s - %s\n", commandId, success ? "success" : "failed");
 }
 
-// ==========================================
 // SENSOR FUNCTIONS
-// ==========================================
 float readTemperature() {
   float temp = dht.readTemperature();
   if (isnan(temp)) {
-    Serial.println("⚠️ Failed to read temperature!");
+    Serial.println("Failed to read temperature!");
     return -999;
   }
   return temp;
@@ -347,7 +332,7 @@ float readTemperature() {
 float readHumidity() {
   float hum = dht.readHumidity();
   if (isnan(hum)) {
-    Serial.println("⚠️ Failed to read humidity!");
+    Serial.println("Failed to read humidity!");
     return -999;
   }
   return hum;
@@ -374,7 +359,7 @@ bool readLightSensor() {
   int value = digitalRead(LIGHT_DO);
 
   // Giả sử:  LOW = tối (is_dark = true), HIGH = sáng (is_dark = false)
-  return (value == LOW);
+  return (value == HIGH);
 }
 
 void sendSensorData() {
@@ -385,7 +370,7 @@ void sendSensorData() {
 
   // Kiểm tra giá trị hợp lệ
   if (temperature == -999 || airHumidity == -999) {
-    Serial.println("⚠️ Skipping sensor data (invalid readings)");
+    Serial.println("Skipping sensor data (invalid readings)");
     return;
   }
 
@@ -404,10 +389,10 @@ void sendSensorData() {
   serializeJson(doc, buffer);
 
   if (mqttClient.publish(TOPIC_SENSORS, buffer)) {
-    Serial.printf("📊 Sensor:  T=%.1f°C, H=%.1f%%, Soil=%.1f%%, Dark=%s\n",
-                  temperature, airHumidity, soilMoisture, isDark ? "Yes" : "No");
+    Serial.printf("Sensor:  T=%.1f°C, H=%.1f%%, Soil=%.1f%%, Dark=%s\n",
+                  temperature, airHumidity, soilMoisture, isDark ?"Yes":"No");
   } else {
-    Serial.println("❌ Failed to publish sensor data");
+    Serial.println("Failed to publish sensor data");
   }
 }
 
@@ -428,7 +413,7 @@ void sendDeviceStatus() {
                   pumpStatus ? "ON" : "OFF",
                   ledStatus ? "ON" : "OFF");
   } else {
-    Serial.println("❌ Failed to publish status");
+    Serial.println("Failed to publish status");
   }
 }
 
@@ -439,7 +424,7 @@ void checkAutoPumpOff() {
   if (autoPumpOff && pumpStatus) {
     unsigned long elapsed = millis() - pumpStartTime;
     if (elapsed >= pumpDuration) {
-      Serial.println("⏱️ Auto pump off triggered");
+      Serial.println("Auto pump off triggered");
 
       digitalWrite(RELAY_PUMP, OFF);
       pumpStatus = false;
@@ -448,23 +433,5 @@ void checkAutoPumpOff() {
       // Gửi status update
       sendDeviceStatus();
     }
-  }
-}
-
-//mới thêm
-void autoControlLED() {
-  bool isDark = readLightSensor();
-
-  if (isDark && !ledStatus) {
-    digitalWrite(LED_PIN, ON);
-    ledStatus = true;
-    Serial.println(" Auto LED ON (Dark)");
-    sendDeviceStatus();
-  }
-  else if (!isDark && ledStatus) {
-    digitalWrite(LED_PIN, OFF);
-    ledStatus = false;
-    Serial.println(" Auto LED OFF (Bright)");
-    sendDeviceStatus();
   }
 }
